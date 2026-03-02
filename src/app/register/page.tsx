@@ -219,7 +219,7 @@ export default function RegisterPage() {
                   <input
                     required
                     type="text"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white transition-all"
+                    className="text-black w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white transition-all"
                     onChange={(e) =>
                       setUserData((p) => ({
                         ...p,
@@ -246,7 +246,7 @@ export default function RegisterPage() {
                   <input
                     required
                     type="email"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white transition-all"
+                    className="text-black w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white transition-all"
                     onChange={(e) =>
                       setUserData((p) => ({
                         ...p,
@@ -273,7 +273,7 @@ export default function RegisterPage() {
                   <input
                     required
                     type="password"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white transition-all"
+                    className="text-black w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white transition-all"
                     onChange={(e) =>
                       setUserData((p) => ({
                         ...p,
@@ -300,7 +300,7 @@ export default function RegisterPage() {
                   <input
                     required
                     type="password"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white transition-all"
+                    className="text-black w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white transition-all"
                     onChange={(e) =>
                       setUserData((p) => ({
                         ...p,
