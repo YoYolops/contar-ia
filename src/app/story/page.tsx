@@ -215,7 +215,7 @@ function StoryPageContent() {
    * EFEITO PRINCIPAL — GERAÇÃO OU CARREGAMENTO DA HISTÓRIA
    * ============================================================
    */
-  useEffect(() => {
+useEffect(() => {
   // 1. Travas de segurança essenciais
   if (isLoading) return;
   if (!session?.token) {
@@ -320,7 +320,7 @@ function StoryPageContent() {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.token}`
+          "Authorization": `Bearer ${session?.token}`
         },
         body: JSON.stringify(storyRequest),
         signal: abortController.signal,
@@ -333,7 +333,7 @@ function StoryPageContent() {
       if (ignore) return;
 
       if (data.story_markdown && data.story_markdown.trim().length > 0) {
-        const relevantIssues = (data.issues || []).filter(issue => {
+        const relevantIssues = (data.issues || []).filter((issue: any) => {
           const issueLower = issue.toLowerCase();
           return !issueLower.includes("história não foi gerada") &&
                  !issueLower.includes("erro") &&
@@ -346,7 +346,7 @@ function StoryPageContent() {
         setStory("");
       }
 
-    } catch (error) {
+    } catch (error: any) {
       if (ignore || error.name === "AbortError") return;
 
       let errorMessage = "Erro ao gerar a história. Por favor, tente novamente.";
@@ -499,5 +499,4 @@ function StoryPageContent() {
     </div>
   );
 }
-
 
