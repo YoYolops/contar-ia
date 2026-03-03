@@ -220,9 +220,11 @@ function StoryPageContent() {
     /**
      * Redireciona para login se não autenticado
      */
-    if (!isLoading && !session?.token) {
-      router.push("/login");
-      return;
+    if (isLoading) return;
+
+    if (!session?.token) {
+        router.push("/login");
+        return;
     }
 
     /**
@@ -311,7 +313,7 @@ function StoryPageContent() {
       value: storyData.value,
       ageGroup: storyData.ageGroup,
       setting: storyData.setting,
-      characters: storyData.characters.sort()
+      characters: [...(storyData.characters || [])].sort()
     });
 
     if (lastStoryKeyRef.current !== currentStoryKey) {
@@ -606,3 +608,4 @@ function StoryPageContent() {
     </div>
   );
 }
+
