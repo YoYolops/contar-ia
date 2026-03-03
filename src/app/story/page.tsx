@@ -216,153 +216,97 @@ function StoryPageContent() {
    * ============================================================
    */
   useEffect(() => {
+  // 1. Travas de segurança essenciais
+  if (isLoading) return;
+  if (!session?.token) {
+    router.push("/login");
+    return;
+  }
 
-    /**
-     * Redireciona para login se não autenticado
-     */
-    if (isLoading) return;
+  // 2. Lógica para buscar história EXISTENTE
+  if (storyId) {
+    let ignore = false;
+    const controller = new AbortController();
+    
+    setLoading(true);
+    setIssues([]);
+    setIsSaved(true);
 
-    if (!session?.token) {
-        router.push("/login");
-        return;
-    }
-
-    /**
-     * ============================================================
-     * CASO 1 — CARREGAR HISTÓRIA EXISTENTE POR ID
-     * ============================================================
-     */
-    if (storyId) {
-      const controller = new AbortController();
-
-      setLoading(true);
-      setIssues([]);
-      setIsSaved(true);
-
-      fetch(`${backendUrl}/stories/by-id/${storyId}?user_id=${session?.user_id ?? ""}`, {
-        method: "GET",
-        signal: controller.signal,
+    fetch(`${backendUrl}/stories/by-id/${storyId}?user_id=${session?.user_id ?? ""}`, {
+      method: "GET",
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
       })
-        .then(async (res) => {
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.detail || `HTTP error! status: ${res.status}`);
-          }
-          return res.json();
-        })
-        .then((data) => {
-          setStory(data.contents || "");
-        })
-        .catch((err) => {
-          if (err instanceof Error && err.name === "AbortError") return;
+      .then((data) => {
+        if (!ignore) setStory(data.contents || "");
+      })
+      .catch((err) => {
+        if (!ignore && err.name !== "AbortError") {
           setStory("");
           setIssues([err.message || "Erro ao carregar a história."]);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-
-      return () => {
-        controller.abort();
-      };
-    }
-
-    /**
-     * ============================================================
-     * CANCELAMENTO VIA sessionStorage
-     * ============================================================
-     */
-    const shouldCancel = sessionStorage.getItem("cancel_story_request");
-    if (shouldCancel === "true") {
-      cancelCurrentRequest();
-      sessionStorage.removeItem("cancel_story_request");
-      setLoading(false);
-      setStory("");
-      setIssues([]);
-      isFetchingRef.current = false;
-      return;
-    }
-
-    /**
-     * ============================================================
-     * VERIFICAÇÃO DE DADOS DO CONTEXTO
-     * ============================================================
-     */
-    if (!storyData.theme || !storyData.value) {
-      const checkDataTimeout = setTimeout(() => {
-        if (!storyData.theme || !storyData.value) {
-          setLoading(false);
-          setStory("Dados da história não encontrados. Por favor, crie uma nova história.");
-          setIssues([]);
-          isFetchingRef.current = false;
         }
-      }, 500);
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
 
-      return () => {
-        clearTimeout(checkDataTimeout);
-      };
-    }
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }
 
-    /**
-     * ============================================================
-     * CONTROLE PARA EVITAR REQUISIÇÕES DUPLICADAS
-     * ============================================================
-     */
-    const currentStoryKey = JSON.stringify({
-      theme: storyData.theme,
-      value: storyData.value,
-      ageGroup: storyData.ageGroup,
-      setting: storyData.setting,
-      characters: [...(storyData.characters || [])].sort()
-    });
+  // 3. Lógica para GERAR NOVA história
+  const shouldCancel = sessionStorage.getItem("cancel_story_request");
+  if (shouldCancel === "true") {
+    sessionStorage.removeItem("cancel_story_request");
+    setLoading(false);
+    return;
+  }
 
-    if (lastStoryKeyRef.current !== currentStoryKey) {
-      if (isFetchingRef.current) {
-        cancelCurrentRequest();
-      }
-      setIssues([]);
-      setStory("");
-      setLoading(true);
-      lastStoryKeyRef.current = currentStoryKey;
-    } else {
-      if (isFetchingRef.current) return;
-      setIssues([]);
-      setStory("");
-      setLoading(true);
-    }
+  // Validação dos dados do contexto
+  if (!storyData.theme || !storyData.value) {
+    const checkDataTimeout = setTimeout(() => {
+      setLoading(false);
+      setStory("Dados da história não encontrados. Por favor, crie uma nova história.");
+    }, 500);
+    return () => clearTimeout(checkDataTimeout);
+  }
 
-    isFetchingRef.current = true;
+  // Chave única para evitar repetição da mesma história
+  const currentStoryKey = JSON.stringify({
+    theme: storyData.theme,
+    value: storyData.value,
+    ageGroup: storyData.ageGroup,
+    setting: storyData.setting,
+    characters: [...(storyData.characters || [])].sort()
+  });
 
-    /**
-     * ============================================================
-     * CONFIGURAÇÃO DO ABORT CONTROLLER E TIMEOUT
-     * ============================================================
-     */
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
+  // Se a chave for igual à última, já tentamos gerar essa história. Não faça nada.
+  if (lastStoryKeyRef.current === currentStoryKey) {
+    return; 
+  }
 
-    const timeoutId = setTimeout(() => {
-      if (abortControllerRef.current === abortController) {
-        abortController.abort();
-        console.error("Timeout: A requisição demorou mais de 5 minutos");
-      }
-    }, 300000);
+  // Marca que estamos começando a gerar esta história específica
+  lastStoryKeyRef.current = currentStoryKey;
+  
+  // Padrão React para evitar race conditions
+  let ignore = false;
+  const abortController = new AbortController();
+  
+  const timeoutId = setTimeout(() => {
+    abortController.abort("TIMEOUT");
+  }, 300000); // 5 minutos
 
-    timeoutIdRef.current = timeoutId;
-
-    /**
-     * ============================================================
-     * FUNÇÃO ASSÍNCRONA DE GERAÇÃO DA HISTÓRIA
-     * ============================================================
-     */
-    async function fetchStory() {
-
-      if (abortController.signal.aborted) {
-        isFetchingRef.current = false;
-        return;
-      }
-
-      const storyRequest: StoryGenerationRequest = {
+  async function fetchStory() {
+    setLoading(true);
+    setIssues([]);
+    
+    try {
+      const storyRequest = {
         theme: storyData.theme,
         age_group: getAgeLabel(storyData.ageGroup),
         educational_value: storyData.value,
@@ -372,120 +316,67 @@ function StoryPageContent() {
         creator_id: session?.user_id,
       };
 
-      try {
-        const res = await fetch(`${backendUrl}/stories/generate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(storyRequest),
-          signal: abortController.signal,
+      const res = await fetch(`${backendUrl}/stories/generate`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.token}`
+        },
+        body: JSON.stringify(storyRequest),
+        signal: abortController.signal,
+      });
+
+      if (ignore) return;
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+      const data = await res.json();
+      if (ignore) return;
+
+      if (data.story_markdown && data.story_markdown.trim().length > 0) {
+        const relevantIssues = (data.issues || []).filter(issue => {
+          const issueLower = issue.toLowerCase();
+          return !issueLower.includes("história não foi gerada") &&
+                 !issueLower.includes("erro") &&
+                 !issueLower.includes("conteúdo");
         });
-
-        if (abortController.signal.aborted) return;
-
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        if (timeoutIdRef.current === timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutIdRef.current = null;
-        }
-
-        const data: StoryGenerationResponse = await res.json();
-
-        if (abortController.signal.aborted || abortControllerRef.current !== abortController) {
-          return;
-        }
-
-        /**
-         * Processamento da resposta da geração
-         */
-        if (data.story_markdown && data.story_markdown.trim().length > 0) {
-
-          const relevantIssues = (data.issues || []).filter(issue => {
-            const issueLower = issue.toLowerCase();
-            return !issueLower.includes("história não foi gerada") &&
-                   !issueLower.includes("erro ao gerar história") &&
-                   !issueLower.includes("conteúdo sensível detectado") &&
-                   !issueLower.includes("conteúdo impróprio");
-          });
-
-          setIssues(relevantIssues.length > 0 ? relevantIssues : []);
-          setStory(data.story_markdown);
-
-        } else {
-
-          if (data.issues && data.issues.length > 0) {
-            setIssues(data.issues);
-            setStory("");
-          } else {
-            setStory("Não foi possível gerar a história.");
-            setIssues([]);
-          }
-        }
-
-      } catch (error) {
-
-        if (error instanceof Error && error.name === "AbortError") {
-          if (abortControllerRef.current === abortController) {
-            isFetchingRef.current = false;
-            abortControllerRef.current = null;
-            if (timeoutIdRef.current === timeoutId) {
-              clearTimeout(timeoutId);
-              timeoutIdRef.current = null;
-            }
-          }
-          return;
-        }
-
-        if (abortController.signal.aborted || abortControllerRef.current !== abortController) {
-          return;
-        }
-
-        console.error("Erro ao gerar história:", error);
-
-        let errorMessage = "Erro ao gerar a história. Por favor, tente novamente.";
-
-        if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
-          errorMessage = "Não foi possível conectar ao servidor. Verifique se o backend está rodando em http://localhost:8000";
-        } else if (error instanceof Error) {
-          if (error.message.includes("timeout") || error.message.includes("Timeout")) {
-            errorMessage = "A geração da história está demorando mais que o esperado. Por favor, aguarde ou tente novamente.";
-          } else {
-            errorMessage = `Erro: ${error.message}`;
-          }
-        }
-
+        setIssues(relevantIssues);
+        setStory(data.story_markdown);
+      } else {
+        setIssues(data.issues && data.issues.length > 0 ? data.issues : ["Não foi possível gerar a história."]);
         setStory("");
-        setIssues([errorMessage]);
-
-      } finally {
-
-        if (abortControllerRef.current === abortController && !abortController.signal.aborted) {
-          if (timeoutIdRef.current === timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutIdRef.current = null;
-          }
-          setLoading(false);
-          isFetchingRef.current = false;
-          abortControllerRef.current = null;
-        }
       }
+
+    } catch (error) {
+      if (ignore || error.name === "AbortError") return;
+
+      let errorMessage = "Erro ao gerar a história. Por favor, tente novamente.";
+      if (error === "TIMEOUT" || error.message?.includes("Timeout")) {
+        errorMessage = "A geração demorou mais que o esperado. Tente novamente.";
+      } else if (error instanceof TypeError) {
+        errorMessage = "Não foi possível conectar ao servidor.";
+      }
+      setIssues([errorMessage]);
+      setStory("");
+      
+      // Se falhou, limpamos a ref para permitir que o usuário tente de novo clicando no botão
+      lastStoryKeyRef.current = ""; 
+
+    } finally {
+      clearTimeout(timeoutId);
+      if (!ignore) setLoading(false);
     }
+  }
 
-    fetchStory();
+  fetchStory();
 
-    /**
-     * Cleanup ao desmontar ou alterar dependências
-     */
-    return () => {
-      if (abortControllerRef.current === abortController) {
-        cancelCurrentRequest();
-      }
-    };
+  // Função de limpeza simplificada
+  return () => {
+    ignore = true;
+    clearTimeout(timeoutId);
+    abortController.abort();
+  };
 
-  }, [storyData, storyId, backendUrl, isLoading, session?.token, session?.user_id, router]);
-
+}, [storyData, storyId, backendUrl, isLoading, session?.token, session?.user_id, router]);
   /**
    * ============================================================
    * RENDERIZAÇÃO DA INTERFACE
@@ -608,4 +499,5 @@ function StoryPageContent() {
     </div>
   );
 }
+
 
